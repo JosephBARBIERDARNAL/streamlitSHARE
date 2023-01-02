@@ -1,7 +1,32 @@
 #packages and functions importation
 import streamlit as st
-from ipynb.fs.full.get_variables import get_all_variables
+#from ipynb.fs.full.get_variables import get_all_variables
 
+
+#test
+import pandas as pd
+from tqdm import tqdm as tqdm
+import os
+def get_all_variables():
+    
+    PATH = "/Users/josephbarbier/Desktop/PROJETpython/rawdata"
+    vars = set()
+    
+    for index, dirs, files in os.walk(PATH):
+        for file in files:
+            if file.endswith(".dta"):
+                df = pd.read_stata(
+                    os.path.join(index, file),
+                    chunksize=1,
+                    convert_categoricals=False,
+                ).read(3)
+                vars.update(df.columns.tolist())
+            
+    return vars
+
+  
+  
+  
 st.title("Get the data from the [SHARE study](https://share-eric.eu) you want in 3 easy steps")
 
 
