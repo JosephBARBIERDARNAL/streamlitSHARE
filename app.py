@@ -5,7 +5,6 @@ import streamlit as st
 
 #test
 import pandas as pd
-from tqdm import tqdm as tqdm
 import os
 def get_all_variables():
     
