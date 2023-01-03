@@ -2,7 +2,7 @@
 
 ### Data app project for the [SHARE study](https://share-eric.eu).
 
-Goal: simplify the technical problems encountered by researchers working on the SHARE data. 
+Goal: simplify the technical problems encountered by researchers working on the SHARE data. Description of the project below.
 
 
 # Application Streamlit pour l'exploration de données issues de la *[Survey of Health, Ageing and Retirement in Europe](http://www.share-project.org/home0.html)* (SHARE)
