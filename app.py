@@ -1,16 +1,25 @@
+#import basic packages
 import streamlit as st
 import re
 import os
 import numpy as np
 import pandas as pd
-from ipynb.fs.full.get_variables import get_all_variables
-from ipynb.fs.full.others import *
-from ipynb.fs.full.regex import *
-from ipynb.fs.full.output_df import list_to_df
 import PyPDF2
+import matplotlib.pyplot as plt
 
+#import our functions
+from ipynb.fs.full.get_variables import get_all_variables
+from ipynb.fs.full.cleaning import *
+from ipynb.fs.full.regex import *
+from ipynb.fs.full.output_df import *
+from ipynb.fs.full.graph import graph
+from ipynb.fs.full.modelling import *
 
-
+#import function for the modelling part
+from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.preprocessing import OneHotEncoder
+from scipy import stats
 
 
 
@@ -31,12 +40,18 @@ st.text("")
 
 #get file directory
 st.markdown("## Working directory")
-st.markdown("Enter your working directory")
-full_path = st.text_input("example: /Users/josephbarbier/Desktop/PROJETpython/", '/Users/josephbarbier/Desktop/PROJETpython/')
-st.write("Current directory:", full_path)
+st.markdown("#### Enter your working directory")
+cwd = os.path.dirname(os.path.realpath(__file__))
+st.write("Current directory:", cwd)
+use_cwd = st.checkbox('Use current working directory')
+if use_cwd:
+    full_path = cwd + "/"
+else:
+    full_path = st.text_input("Other (example: /Users/josephbarbier/Desktop/PROJETpython/)")
+st.write("Directory chosen:", full_path)
 st.text("")
 st.markdown("***If you obtain the following error, your working directory is probably wrong. Verify that you did not change any file or folder name before using the app.***")
-st.code("FileNotFoundError: [Errno 2] No such file or directory:")
+st.code("FileNotFoundError: [Errno 2] No such file or directory")
 
 
 st.text("")
@@ -65,7 +80,7 @@ st.sidebar.markdown("You can find the source code on this [Github repository](ht
 #about us description
 st.sidebar.markdown("## About us")
 st.sidebar.markdown("French statistics students from the Bordeaux School of Economics.")
-st.sidebar.markdown("Contact: blabla@gmail.com")
+st.sidebar.markdown("Contact: joseph.barbierdarnal@gmail.com")
 
 
 
@@ -123,7 +138,7 @@ list_var = list(variables)
 st.markdown("##### *You have selected the following variables:*")
 
 #path where to find the documentation of each wave
-path = f"{full_path}/questionnaire/wave{str(wave_chosen)}questionnaire.pdf"
+path = f"{full_path}wave{str(wave_chosen)}questionnaire.pdf"
 docu = extract_text_from_pdf(pdf_file=path)
 
 #use different function to get the description of the variables chosen depending on the wave
@@ -159,33 +174,108 @@ st.text("")
 
 st.markdown("## Quick overview of the data")
 
+
 #add the mergeid and the country, and transform the list into a df
 list_var.extend(["mergeid","country"])
 clean_names.extend(["mergeid","country"])
 data = list_to_df(wave=wave_chosen, variables=list_var, path=full_path)
+
+#clean variable and save the dataset for the end
+for var in list_var:
+    data[var] = qual_to_quant(data, var)
+df_to_return = data.to_csv().encode('utf-8') #see at the end
+
+#save shape    
 row, col = data.shape
 
 #print shape of the df
-st.markdown("***Shape of the current dataset***")
-st.write(f"Sample size: {row}. Number of cols: {col}")
-#st.write(f"Number of cols: {col}")
+st.write(f"Sample size n = {row} \n Number of cols p = {col}")
+
+#print head of the df
+st.dataframe(data.head(7))
 
 
 
-#print some informations about the variables chosen
-if len(list_var) > 2:
+st.text("")
+st.text("")
+
+
+
+
+st.markdown("***Each modality percentage is calculated ignoring NAs in order to make 100% in total***")
+st.markdown("***Outliers from quantitative variables have been transform to NA (not the case for the download button below)***")
+
+#SHOW BASIC INFORMATION OF EACH VARIABLE
+
+var_to_describe = list_var[:-2] #remove mergeid and country
+
+#Init 2 columns
+col1, col2 = st.columns(2, gap="small") 
+col1.header("Statistics")
+col2.header("Distribution")
+
+x = 0
+for var in var_to_describe:
     
-    #print head of the df
-    st.dataframe(data.head())
+    display = st.checkbox(var)
     
-    st.markdown("***Percentage of NAs of each variable:***")
-    for i,var in zip(range(len(list_var)), list_var):
+    if display:
+        #count the NA percentage
         tot_na = data[var].isna().sum()
         na_percent = round(tot_na/len(data)*100,2)
-        clean_name = change_case(clean_names[i], wave_chosen)
-        st.write(f"{data[var].name} ({clean_name}): {na_percent}%")
-
         
+        with col1:
+            
+            #make some space
+            st.text("")
+            st.text("")
+            st.text("")
+            
+            #test if its the first iteration
+            if x != 0:
+                #make some space
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+            x += 1
+            
+            #print NA percentage
+            st.write(var, " has ", na_percent, "% of missing values. ")
+        
+            #compute stats
+            if data[var].isna().sum() == len(data):
+                clean_and_stat(data, var, full_na=True)
+            else:
+                clean_and_stat(data, var)
+            
+        with col2:
+            if data[var].isna().sum() == len(data):
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.write("Plot impossible (reason: only has missing values)")
+                st.text("")
+                st.text("")
+                st.text("")
+                st.text("")
+            else:
+                st.text("")
+                st.text("")
+                graph(data, var)
+                st.text("")
+    
+
         
 st.text("")
 st.text("")
@@ -197,33 +287,45 @@ st.text("")
 
 
 
-#STEP 4: ANALYSIS
-st.markdown("## Analysis")       
+  
 
-    
-#clean each variable and print its descriptive statistics
-for var in list_var[:-2]:
-    data[var] = qual_to_quant(data, var)
-    st.write(var, data[var].dtype)
-    stat(data, var)        
-        
+
+
+#MODELLING
+
+#some comments
+st.markdown("## Modelling")
+st.markdown("- **Since SHARE data contains lots of missing values, we can't use the model we want for the analysis. There are 2 main solutions: NAs imputation or use modelling tools that allow the presence of missing values. We choose the second solution. According to the [scikit-learn documentation](https://scikit-learn.org/stable/modules/impute.html#estimators-that-handle-nan-values), there are several estimators that matches our criteria.**")
+st.markdown("- **When the user wants to predict a quantitative variable, then the estimator *Histogram-based Gradient Boosting Regression Tree* will be used. For qualitative variables, the estimator will be *Histogram-based Gradient Boosting Classification Tree*.**")
+st.markdown("- **Other important informations: all observations containing NAs in the variable that wille be predicted are dropped and all qualitative variables are encoded using one hot encoder.**")
+
+#choose the parameters to be included in the analysis
+predicted = st.selectbox("Choose the variable that will be predicted", list_var[:-2])
+predictors = st.multiselect("Choose the predictors", list_var[:-2], default=list_var[1])
    
-        
+#if the user wants to predict a quantitative variable
+if data[predicted].dtype in ["int64", "float64"]:
+    modelling_quant(data, predicted, predictors)
+
+#if the user wants to predict a qualitative variable
+else:
+    modelling_qual(data, predicted, predictors)
         
         
         
 st.text("")
 st.text("")
 st.text("") 
-st.text("")
-st.text("")
-st.text("") 
-st.text("")
-st.text("")
-st.text("") 
-        
-#return the df cleaned
-df_to_return = data.to_csv().encode('utf-8')
+
+
+
+
+
+
+
+#DOWNLOAD DATASET
+st.markdown("## Get the dataset")
+st.markdown("***By clicking on the button below, you can download the selected data in csv format.***")       
 st.download_button(label="Dowload the dataset",
                    data=df_to_return,
                    file_name = "my_share_data.csv")
@@ -232,7 +334,7 @@ st.download_button(label="Dowload the dataset",
 
 
 
-st.markdown("***Selectionnez le graphique ***")
+
 
 
 
